@@ -12,7 +12,7 @@ using StackExchange.Redis.Configuration;
 
 try
 {
-    using IHost host = await StartSiloAsync();
+    using IHost host = await StartSiloAsync(args);
     Console.WriteLine("\n\n Press Enter to terminate...\n\n");
     Console.ReadLine();
 
@@ -26,7 +26,7 @@ catch (Exception ex)
     return 1;
 }
 
-static async Task<IHost> StartSiloAsync()
+static async Task<IHost> StartSiloAsync(string[] args)
 {
     var builder = Host
         .CreateDefaultBuilder()
@@ -36,7 +36,7 @@ static async Task<IHost> StartSiloAsync()
         })
         .UseOrleans((context, silo) =>
         {
-            var activeSilos = GetActiveSilos();
+            (int siloPort, int gatewayPort) = DetermineHostPortsBasedOnArgs(args);
 
             silo
                 .UseRedisClustering(options =>
@@ -58,10 +58,16 @@ static async Task<IHost> StartSiloAsync()
                     options.ConnectionString = "localhost:2020";
                     options.DatabaseNumber = 1;
                 })
-                .ConfigureLogging(logging => logging.AddConsole());
+                .ConfigureLogging(logging => logging.AddConsole())
+                .Configure<GrainCollectionOptions>(options =>
+                {
+                    options.ActivationTimeout=TimeSpan.FromSeconds(30);
+                    options.DeactivationTimeout=TimeSpan.FromSeconds(30);
+                    options.CollectionAge=TimeSpan.FromHours(2);
+                });
                
 
-            silo.ConfigureEndpoints(IPAddress.Loopback, 11111 + activeSilos, 30000 + activeSilos);
+            silo.ConfigureEndpoints(IPAddress.Loopback, siloPort,gatewayPort);
 
         }).ConfigureServices(services =>
         {
@@ -73,65 +79,95 @@ static async Task<IHost> StartSiloAsync()
     return host;
 }
 
-static int GetActiveSilos()
+static (int siloPort, int gatewayPort) DetermineHostPortsBasedOnArgs(string[] args)
 {
-    var connectionString = "localhost:2020";
-    var redis = ConnectionMultiplexer.Connect(connectionString);
-    var db = redis.GetDatabase();
+    string port = null;
+    string gateway = null;
 
-    // Replace 'orleans_membership_key' with the actual key used by Orleans
-    var membershipKey = "orleans.Service/members/orleans.Redis";
-    var members =  db.HashGetAll(membershipKey);
-
-    var activeSilos = members
-        .Count(IsSiloActive);
-
-    Console.WriteLine($"Number of active silos: {activeSilos}");
-
-    return activeSilos;
-}
-
-
-static bool IsSiloActive(HashEntry siloData)
-{
-
-    if (siloData.Equals(default(HashEntry)))
+    for (int i = 0; i < args.Length; i++)
     {
-        return false; 
+        if (args[i] == "-port" && i + 1 < args.Length)
+        {
+            port = args[i + 1];
+        }
+        else if (args[i] == "-gateway" && i + 1 < args.Length)
+        {
+            gateway = args[i + 1];
+        }
     }
 
-    try
-    {
-        var siloDataModel = JsonSerializer.Deserialize<RedisSiloModel>(siloData.Value.ToString());
+    var siloPort = 11111;
+    var gatewayPort = 33333;
 
-        if (siloDataModel is null)
-            return false;
+    if(!int.TryParse(port,out siloPort) && !string.IsNullOrEmpty(port))
+        Console.WriteLine("Invalid port declaration. setting default port to 11111");
 
-        return siloDataModel.Status == 3;
-    }
-    catch (Exception e)
-    {
-        return false;
-    }
+    if(!string.IsNullOrEmpty(gateway) && !int.TryParse(gateway,out gatewayPort))
+        Console.WriteLine("Invalid gateway declaration. setting default gateway to 33333");
+
+    return (siloPort, gatewayPort);
 }
 
 
-public class RedisSiloModel
-{
-    public SiloAddressModel SiloAddress { get; set; }
-    public int Status { get; set; }
-    public List<object> SuspectTimes { get; set; }
-    public int ProxyPort { get; set; }
-    public string HostName { get; set; }
-    public string SiloName { get; set; }
-    public string RoleName { get; set; }
-    public int UpdateZone { get; set; }
-    public int FaultZone { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime IAmAliveTime { get; set; }
-}
+//static int GetActiveSilos()
+//{
+//    var connectionString = "localhost:2020";
+//    var redis = ConnectionMultiplexer.Connect(connectionString);
+//    var db = redis.GetDatabase();
 
-public class SiloAddressModel
-{
-    public string SiloAddress { get; set; }
-}
+//    // Replace 'orleans_membership_key' with the actual key used by Orleans
+//    var membershipKey = "orleans.Service/members/orleans.Redis";
+//    var members =  db.HashGetAll(membershipKey);
+
+//    var activeSilos = members
+//        .Count(IsSiloActive);
+
+//    Console.WriteLine($"Number of active silos: {activeSilos}");
+
+//    return activeSilos;
+//}
+
+
+//static bool IsSiloActive(HashEntry siloData)
+//{
+
+//    if (siloData.Equals(default(HashEntry)))
+//    {
+//        return false; 
+//    }
+
+//    try
+//    {
+//        var siloDataModel = JsonSerializer.Deserialize<RedisSiloModel>(siloData.Value.ToString());
+
+//        if (siloDataModel is null)
+//            return false;
+
+//        return siloDataModel.Status == 3;
+//    }
+//    catch (Exception e)
+//    {
+//        return false;
+//    }
+//}
+
+
+//public class RedisSiloModel
+//{
+//    public SiloAddressModel SiloAddress { get; set; }
+//    public int Status { get; set; }
+//    public List<object> SuspectTimes { get; set; }
+//    public int ProxyPort { get; set; }
+//    public string HostName { get; set; }
+//    public string SiloName { get; set; }
+//    public string RoleName { get; set; }
+//    public int UpdateZone { get; set; }
+//    public int FaultZone { get; set; }
+//    public DateTime StartTime { get; set; }
+//    public DateTime IAmAliveTime { get; set; }
+//}
+
+//public class SiloAddressModel
+//{
+//    public string SiloAddress { get; set; }
+//}

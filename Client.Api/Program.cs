@@ -55,6 +55,17 @@ app.MapGet("/Messages", async (int grainId, IClusterClient client) =>
     return Results.Ok(messages);
 });
 
+
+app.MapDelete("/Messages/Clear", async (int grainId, IClusterClient client) =>
+{
+    var messageGrain = client.GetGrain<IMessagingGrain>(grainId);
+
+  await messageGrain.ClearStateAsync();
+
+    return Results.Ok();
+});
+
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

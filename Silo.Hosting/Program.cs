@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
 using Orleans.Persistence;
+using Orleans.Runtime;
 using StackExchange.Redis;
 using StackExchange.Redis.Configuration;
 
@@ -43,10 +44,8 @@ static async Task<IHost> StartSiloAsync(string[] args)
                 {
                     options.ConfigurationOptions = new ConfigurationOptions()
                     {
-                        EndPoints = new EndPointCollection()
+                        EndPoints = new EndPointCollection { "localhost:2020" }
                     };
-
-                    options.ConfigurationOptions.EndPoints.Add("localhost:2020");
                 })
                 .Configure<ClusterOptions>(options =>
                 {
@@ -71,6 +70,7 @@ static async Task<IHost> StartSiloAsync(string[] args)
 
         }).ConfigureServices(services =>
         {
+            services.AddSingleton<PlacementStrategy, HashBasedPlacement>();
         });
 
     var host = builder.Build();

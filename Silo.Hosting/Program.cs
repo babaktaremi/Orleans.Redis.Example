@@ -1,15 +1,16 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-using System.Net;
+﻿using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
+using Orleans.Hosting;
 using Orleans.Persistence;
 using Orleans.Runtime;
 using StackExchange.Redis;
 using StackExchange.Redis.Configuration;
+using Orleans.Statistics;
+using Silo.Hosting;
 
 try
 {
@@ -64,18 +65,15 @@ static async Task<IHost> StartSiloAsync(string[] args)
                     options.DeactivationTimeout=TimeSpan.FromSeconds(30);
                     options.CollectionAge=TimeSpan.FromHours(2);
                 });
-               
-
             silo.ConfigureEndpoints(IPAddress.Loopback, siloPort,gatewayPort);
 
         }).ConfigureServices(services =>
         {
             services.AddSingleton<PlacementStrategy, HashBasedPlacement>();
+           // services.AddSingleton<IHostEnvironmentStatistics, HostEnvironmentStatistics>();
         });
-
     var host = builder.Build();
     await host.StartAsync();
-
     return host;
 }
 
@@ -99,7 +97,7 @@ static (int siloPort, int gatewayPort) DetermineHostPortsBasedOnArgs(string[] ar
     var siloPort = 11111;
     var gatewayPort = 33333;
 
-    if(!int.TryParse(port,out siloPort) && !string.IsNullOrEmpty(port))
+    if(!string.IsNullOrEmpty(port)&&!int.TryParse(port,out siloPort))
         Console.WriteLine("Invalid port declaration. setting default port to 11111");
 
     if(!string.IsNullOrEmpty(gateway) && !int.TryParse(gateway,out gatewayPort))

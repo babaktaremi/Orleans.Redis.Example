@@ -38,7 +38,7 @@ static async Task<IHost> StartSiloAsync(string[] args)
         })
         .UseOrleans((context, silo) =>
         {
-            (int siloPort, int gatewayPort) = DetermineHostPortsBasedOnArgs(args);
+            (int siloPort, int gatewayPort,int dashboard) = DetermineHostPortsBasedOnArgs(args);
 
             silo
                 .UseRedisClustering(options =>
@@ -65,6 +65,12 @@ static async Task<IHost> StartSiloAsync(string[] args)
                     options.DeactivationTimeout=TimeSpan.FromSeconds(30);
                     options.CollectionAge=TimeSpan.FromHours(2);
                 });
+
+            silo.UseDashboard(options =>
+            {
+                options.Port = dashboard;
+            });
+
             silo.ConfigureEndpoints(IPAddress.Loopback, siloPort,gatewayPort);
 
         }).ConfigureServices(services =>
@@ -77,10 +83,11 @@ static async Task<IHost> StartSiloAsync(string[] args)
     return host;
 }
 
-static (int siloPort, int gatewayPort) DetermineHostPortsBasedOnArgs(string[] args)
+static (int siloPort, int gatewayPort,int dashboardPort) DetermineHostPortsBasedOnArgs(string[] args)
 {
     string port = null;
     string gateway = null;
+    string dashboard = null;
 
     for (int i = 0; i < args.Length; i++)
     {
@@ -92,10 +99,16 @@ static (int siloPort, int gatewayPort) DetermineHostPortsBasedOnArgs(string[] ar
         {
             gateway = args[i + 1];
         }
+
+        else if (args[i] == "-dashboard" && i + 1 < args.Length)
+        {
+            dashboard = args[i + 1];
+        }
     }
 
     var siloPort = 11111;
     var gatewayPort = 33333;
+    var dashboardPort = 8080;
 
     if(!string.IsNullOrEmpty(port)&&!int.TryParse(port,out siloPort))
         Console.WriteLine("Invalid port declaration. setting default port to 11111");
@@ -103,7 +116,10 @@ static (int siloPort, int gatewayPort) DetermineHostPortsBasedOnArgs(string[] ar
     if(!string.IsNullOrEmpty(gateway) && !int.TryParse(gateway,out gatewayPort))
         Console.WriteLine("Invalid gateway declaration. setting default gateway to 33333");
 
-    return (siloPort, gatewayPort);
+    if (!string.IsNullOrEmpty(dashboard) && !int.TryParse(dashboard, out dashboardPort))
+        Console.WriteLine("Invalid dashboard port declaration. setting default dashboard to 8080");
+
+    return (siloPort, gatewayPort,dashboardPort);
 }
 
 

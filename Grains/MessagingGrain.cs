@@ -3,6 +3,7 @@ using Abstractions.Interfaces;
 using Microsoft.Extensions.Logging;
 using Orleans.Providers;
 using Orleans.Runtime;
+using Orleans.Utilities;
 
 namespace Grains;
 
@@ -11,6 +12,7 @@ public class MessagingGrain:Grain,IMessagingGrain
 {
     private readonly IPersistentState<List<MessageModel>> _messages;
     private readonly ILogger<MessagingGrain> _logger;
+    private readonly ObserverManager<IObserverMessagingGrain> _observerManager;
 
     public MessagingGrain(
         [PersistentState(stateName:"message",storageName:"Redis")]
@@ -18,6 +20,8 @@ public class MessagingGrain:Grain,IMessagingGrain
     {
         _messages = messages;
         _logger = logger;
+        _observerManager = new ObserverManager<IObserverMessagingGrain>
+            (TimeSpan.FromMinutes(60), _logger);
     }
 
 
@@ -32,6 +36,8 @@ public class MessagingGrain:Grain,IMessagingGrain
     {
         _messages.State.Add(model);
         await _messages.WriteStateAsync();
+
+        await Notify();
     }
 
     public Task<List<MessageModel>> GetAllMessages()
@@ -42,5 +48,22 @@ public class MessagingGrain:Grain,IMessagingGrain
     public async Task ClearStateAsync()
     {
         await _messages.ClearStateAsync();
+    }
+
+    public Task Subscribe(IObserverMessagingGrain observerMessagingGrain)
+    {
+       _observerManager.Subscribe(observerMessagingGrain,observerMessagingGrain);
+       return Task.CompletedTask;
+    }
+
+    public Task Unsubscribe(IObserverMessagingGrain observerMessagingGrain)
+    {
+       _observerManager.Unsubscribe(observerMessagingGrain);
+       return Task.CompletedTask;
+    }
+
+    public async Task Notify()
+    {
+        await _observerManager.Notify(grain => grain.MessageStored());
     }
 }

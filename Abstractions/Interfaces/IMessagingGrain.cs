@@ -6,4 +6,7 @@ public interface IMessagingGrain:IGrainWithIntegerKey
 
     Task<List<MessageModel>> GetAllMessages();
     Task ClearStateAsync();
+    Task Subscribe(IObserverMessagingGrain observerMessagingGrain);
+    Task Unsubscribe(IObserverMessagingGrain observerMessagingGrain);
+    Task Notify();
 }

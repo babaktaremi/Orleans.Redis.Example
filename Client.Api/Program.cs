@@ -1,4 +1,5 @@
 using Abstractions.Interfaces;
+using Client.Api;
 using Orleans.Configuration;
 using Orleans.Runtime;
 using StackExchange.Redis;
@@ -33,6 +34,7 @@ builder.Host.UseOrleansClient(clientBuilder =>
 
 });
 
+builder.Services.AddHostedService<MessagingGrainSubscriber>();
 
 var app = builder.Build();
 
